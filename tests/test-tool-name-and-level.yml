@@ -1,0 +1,59 @@
+name: Test tool_name and level inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake brakeman, reviewdog installer, and curl
+        run: |
+          # Create a fake-bin directory for intercepting binaries
+          mkdir -p /tmp/fake-bin
+
+          # Copy fake scripts from committed fixtures to /tmp
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-reviewdog-install.sh" /tmp/fake-reviewdog-install.sh
+          chmod +x /tmp/fake-reviewdog-install.sh
+
+          # Install fake brakeman (writes empty report)
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-brakeman-empty.sh" /tmp/fake-bin/brakeman
+          chmod +x /tmp/fake-bin/brakeman
+
+          # Install fake curl (intercepts reviewdog installer URL)
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-curl.sh" /tmp/fake-bin/curl
+          chmod +x /tmp/fake-bin/curl
+
+          # Add fake-bin to PATH for subsequent steps
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          github_token: ${{ github.token }}
+          skip_install: "true"
+          tool_name: "my-brakeman"
+          level: "warning"
+          reporter: "github-pr-check"
+          filter_mode: "nofilter"
+          fail_level: "none"
+          workdir: "tests/fixtures/fake-rails-app"
+
+      - name: Assert reviewdog was called with correct tool_name and level
+        run: |
+          ARGS="$(cat /tmp/reviewdog-args.txt 2>/dev/null || echo '')"
+          echo "reviewdog args: $ARGS"
+
+          if echo "$ARGS" | grep -q -- "-name=my-brakeman"; then
+            echo "PASS: tool_name 'my-brakeman' passed to reviewdog"
+          else
+            echo "FAIL: expected -name=my-brakeman in reviewdog args, got: $ARGS"
+            exit 1
+          fi
+
+          if echo "$ARGS" | grep -q -- "-level=warning"; then
+            echo "PASS: level 'warning' passed to reviewdog"
+          else
+            echo "FAIL: expected -level=warning in reviewdog args, got: $ARGS"
+            exit 1
+          fi

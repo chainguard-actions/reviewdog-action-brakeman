@@ -1,0 +1,44 @@
+name: Test with brakeman gem install (skip_install=false)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake gem, brakeman, reviewdog installer, and curl
+        run: |
+          # Create a fake-bin directory for intercepting binaries
+          mkdir -p /tmp/fake-bin
+
+          # Copy fake scripts from committed fixtures to /tmp
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-reviewdog-install.sh" /tmp/fake-reviewdog-install.sh
+          chmod +x /tmp/fake-reviewdog-install.sh
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-brakeman-empty.sh" /tmp/fake-brakeman-empty.sh
+          chmod +x /tmp/fake-brakeman-empty.sh
+
+          # Install fake gem (intercepts 'gem install brakeman', installs fake brakeman)
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-gem.sh" /tmp/fake-bin/gem
+          chmod +x /tmp/fake-bin/gem
+
+          # Install fake curl (intercepts reviewdog installer URL)
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-curl.sh" /tmp/fake-bin/curl
+          chmod +x /tmp/fake-bin/curl
+
+          # Add fake-bin to PATH for subsequent steps
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          github_token: ${{ github.token }}
+          skip_install: "false"
+          reporter: "github-pr-check"
+          filter_mode: "nofilter"
+          fail_level: "none"
+          workdir: "tests/fixtures/fake-rails-app"
+
+      - name: Assert action completed successfully
+        run: |
+          echo "PASS: action completed with brakeman installed via gem"

@@ -1,0 +1,64 @@
+name: Test brakeman_version input (specific version install)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake gem, brakeman, reviewdog installer, and curl
+        run: |
+          # Create a fake-bin directory for intercepting binaries
+          mkdir -p /tmp/fake-bin
+
+          # Copy fake scripts from committed fixtures to /tmp
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-reviewdog-install.sh" /tmp/fake-reviewdog-install.sh
+          chmod +x /tmp/fake-reviewdog-install.sh
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-brakeman-empty.sh" /tmp/fake-brakeman-empty.sh
+          chmod +x /tmp/fake-brakeman-empty.sh
+
+          # Install fake gem that records the version argument
+          cat > /tmp/fake-bin/gem << 'EOF'
+          #!/bin/sh
+          # Record the full gem invocation for later assertion
+          echo "$@" >> /tmp/gem-calls.log
+          case "$*" in
+            *install*brakeman*)
+              cp /tmp/fake-brakeman-empty.sh /tmp/fake-bin/brakeman
+              chmod +x /tmp/fake-bin/brakeman
+              exit 0
+              ;;
+          esac
+          exit 0
+          EOF
+          chmod +x /tmp/fake-bin/gem
+
+          # Install fake curl (intercepts reviewdog installer URL)
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-curl.sh" /tmp/fake-bin/curl
+          chmod +x /tmp/fake-bin/curl
+
+          # Add fake-bin to PATH for subsequent steps
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          github_token: ${{ github.token }}
+          brakeman_version: "6.1.2"
+          skip_install: "false"
+          reporter: "github-pr-check"
+          filter_mode: "nofilter"
+          fail_level: "none"
+          workdir: "tests/fixtures/fake-rails-app"
+
+      - name: Assert brakeman was installed with the specified version
+        run: |
+          echo "gem calls log:"
+          cat /tmp/gem-calls.log || echo "(no gem calls recorded)"
+          if grep -q "6.1.2" /tmp/gem-calls.log; then
+            echo "PASS: gem install was called with version 6.1.2"
+          else
+            echo "FAIL: expected gem install to be called with version 6.1.2"
+            exit 1
+          fi

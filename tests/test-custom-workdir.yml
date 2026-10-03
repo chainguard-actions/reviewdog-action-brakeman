@@ -1,0 +1,49 @@
+name: Test custom workdir input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake brakeman, reviewdog installer, and curl
+        run: |
+          # Create a fake-bin directory for intercepting binaries
+          mkdir -p /tmp/fake-bin
+
+          # Copy fake scripts from committed fixtures to /tmp
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-reviewdog-install.sh" /tmp/fake-reviewdog-install.sh
+          chmod +x /tmp/fake-reviewdog-install.sh
+
+          # Install fake brakeman (records workdir to /tmp/brakeman-workdir.txt)
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-brakeman-empty.sh" /tmp/fake-bin/brakeman
+          chmod +x /tmp/fake-bin/brakeman
+
+          # Install fake curl (intercepts reviewdog installer URL)
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-curl.sh" /tmp/fake-bin/curl
+          chmod +x /tmp/fake-bin/curl
+
+          # Add fake-bin to PATH for subsequent steps
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          github_token: ${{ github.token }}
+          skip_install: "true"
+          reporter: "github-pr-check"
+          filter_mode: "nofilter"
+          fail_level: "none"
+          workdir: "tests/fixtures/my-rails-app"
+
+      - name: Assert brakeman ran in the correct workdir
+        run: |
+          WORKDIR="$(cat /tmp/brakeman-workdir.txt 2>/dev/null || echo '')"
+          echo "brakeman workdir: $WORKDIR"
+          if echo "$WORKDIR" | grep -q "my-rails-app"; then
+            echo "PASS: brakeman ran in the expected workdir"
+          else
+            echo "FAIL: expected brakeman to run in 'my-rails-app', got: $WORKDIR"
+            exit 1
+          fi

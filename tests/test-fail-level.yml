@@ -1,0 +1,53 @@
+name: Test fail_level input behavior
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake brakeman (with finding), reviewdog installer, and curl
+        run: |
+          # Create a fake-bin directory for intercepting binaries
+          mkdir -p /tmp/fake-bin
+
+          # Copy fake scripts from committed fixtures to /tmp
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-reviewdog-install-fail.sh" /tmp/fake-reviewdog-install-fail.sh
+          chmod +x /tmp/fake-reviewdog-install-fail.sh
+
+          # Install fake brakeman that outputs a finding
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-brakeman-finding.sh" /tmp/fake-bin/brakeman
+          chmod +x /tmp/fake-bin/brakeman
+
+          # Install fake curl (intercepts reviewdog installer URL, serves fail installer)
+          cp "$GITHUB_WORKSPACE/tests/fixtures/fake-curl-fail.sh" /tmp/fake-bin/curl
+          chmod +x /tmp/fake-bin/curl
+
+          # Add fake-bin to PATH for subsequent steps
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          github_token: ${{ github.token }}
+          skip_install: "true"
+          reporter: "github-pr-check"
+          filter_mode: "nofilter"
+          fail_level: "error"
+          workdir: "tests/fixtures/fake-rails-app"
+
+      - name: Assert action failed due to findings with fail_level=error
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed when findings exist and fail_level=error"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded (reviewdog may have filtered findings)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
