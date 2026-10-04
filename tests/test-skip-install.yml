@@ -1,0 +1,33 @@
+name: Test skip_install - use pre-installed brakeman
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake curl and fake brakeman
+        run: |
+          echo "$GITHUB_WORKSPACE/tests/fixtures/bin" >> $GITHUB_PATH
+
+      - id: action
+        uses: .
+        with:
+          github_token: ${{ github.token }}
+          skip_install: 'true'
+          reporter: local
+          filter_mode: nofilter
+          fail_level: none
+          workdir: tests/fixtures/rails-app
+
+      - name: Assert action completed successfully with skip_install
+        run: |
+          echo "Action completed successfully using pre-installed (fake) brakeman"
+          BRAKEMAN_VERSION=$(brakeman --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "Brakeman version: $BRAKEMAN_VERSION"
+          if [ -z "$BRAKEMAN_VERSION" ]; then
+            echo "FAIL: brakeman not found in PATH"
+            exit 1
+          fi
+          echo "PASS"

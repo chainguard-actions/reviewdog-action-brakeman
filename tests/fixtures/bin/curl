@@ -1,0 +1,50 @@
+#!/bin/sh
+# Fake curl: intercepts reviewdog install URL, passes everything else to real curl.
+# Supports both "curl URL | sh" (stdout) and hardened "curl -o FILE URL" forms.
+
+out=""
+prev=""
+for arg in "$@"; do
+  case "$prev" in
+    -o|--output) out="$arg" ;;
+  esac
+  prev="$arg"
+done
+
+case "$*" in
+  *reviewdog*)
+    # Write a fake reviewdog install script to a temp file
+    FAKE_SCRIPT="$(mktemp)"
+    cat > "$FAKE_SCRIPT" << 'ENDOFSCRIPT'
+#!/bin/sh
+# Fake reviewdog install script - creates a no-op reviewdog binary
+BINDIR="/usr/local/bin"
+prev=""
+for arg in "$@"; do
+  case "$prev" in
+    -b) BINDIR="$arg" ;;
+  esac
+  prev="$arg"
+done
+mkdir -p "$BINDIR"
+cat > "$BINDIR/reviewdog" << 'ENDOFBINARY'
+#!/bin/sh
+# Fake reviewdog - consumes stdin and exits 0
+cat > /dev/null
+exit 0
+ENDOFBINARY
+chmod +x "$BINDIR/reviewdog"
+echo "Fake reviewdog installed to $BINDIR/reviewdog"
+ENDOFSCRIPT
+    if [ -n "$out" ]; then
+      cp "$FAKE_SCRIPT" "$out"
+    else
+      cat "$FAKE_SCRIPT"
+    fi
+    rm -f "$FAKE_SCRIPT"
+    exit 0
+    ;;
+esac
+
+# Fall through to real curl for all other URLs
+exec /usr/bin/curl "$@"

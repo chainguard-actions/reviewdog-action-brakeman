@@ -1,0 +1,34 @@
+name: Test pinned brakeman_version input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake curl and fake brakeman
+        run: |
+          echo "$GITHUB_WORKSPACE/tests/fixtures/bin" >> $GITHUB_PATH
+
+      - id: action
+        uses: .
+        with:
+          github_token: ${{ github.token }}
+          brakeman_version: '6.2.2'
+          skip_install: 'true'
+          reporter: local
+          filter_mode: nofilter
+          fail_level: none
+          workdir: tests/fixtures/rails-app
+
+      - name: Assert brakeman version is available
+        run: |
+          echo "Verifying brakeman is available"
+          INSTALLED_VERSION=$(brakeman --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "Brakeman version: $INSTALLED_VERSION"
+          if [ -z "$INSTALLED_VERSION" ]; then
+            echo "FAIL: brakeman not found in PATH"
+            exit 1
+          fi
+          echo "PASS: brakeman $INSTALLED_VERSION is available"

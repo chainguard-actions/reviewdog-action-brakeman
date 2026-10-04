@@ -1,0 +1,31 @@
+#!/bin/sh
+# Fake brakeman - outputs an empty tabs-format report and exits 0.
+# Supports --output FILE and --version flags.
+
+output_file=""
+show_version=false
+prev=""
+
+for arg in "$@"; do
+  case "$prev" in
+    --output|-o) output_file="$arg" ;;
+  esac
+  case "$arg" in
+    --version) show_version=true ;;
+  esac
+  prev="$arg"
+done
+
+if [ "$show_version" = "true" ]; then
+  echo "brakeman 6.2.2"
+  exit 0
+fi
+
+# Output empty tabs-format report (no findings)
+if [ -n "$output_file" ]; then
+  printf "" > "$output_file"
+else
+  printf ""
+fi
+
+exit 0
