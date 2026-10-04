@@ -9,6 +9,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
 | v2.19.2 | [`v2.19.2`](https://github.com/chainguard-actions/reviewdog-action-brakeman/tree/v2.19.2) | [`5083efd`](https://github.com/reviewdog/action-brakeman/commit/5083efd49634e26645a0736681b618ccc3fb7f14) |
+| v2.20.0 | [`v2.20.0`](https://github.com/chainguard-actions/reviewdog-action-brakeman/tree/v2.20.0) | [`3ca1f82`](https://github.com/reviewdog/action-brakeman/commit/3ca1f826ac652d188845fe8faa3a1423afb904b6) |
 
 ## Privacy
 
