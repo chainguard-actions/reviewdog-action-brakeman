@@ -1,0 +1,54 @@
+name: Test workdir and use_bundler
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake bundle and create workdir
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/brakeman-workdir"
+          mkdir -p /tmp/fakebin
+          cat > /tmp/fakebin/bundle <<'EOF'
+          #!/bin/sh
+          echo "$@" > /tmp/bundle-args.txt
+          pwd > /tmp/bundle-pwd.txt
+          out=""
+          prev=""
+          for arg in "$@"; do
+            case "$prev" in
+              --output|-o) out="$arg" ;;
+            esac
+            prev="$arg"
+          done
+          [ -n "$out" ] || { echo "no --output given" >&2; exit 2; }
+          : > "$out"
+          EOF
+          chmod +x /tmp/fakebin/bundle
+          echo "/tmp/fakebin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          skip_install: 'true'
+          use_bundler: 'true'
+          workdir: brakeman-workdir
+          reporter: local
+          filter_mode: nofilter
+          fail_level: any
+      - name: Assert bundle exec brakeman ran in workdir
+        run: |
+          [ -f /tmp/bundle-args.txt ] || { echo "FAIL: bundle not invoked"; exit 1; }
+          ARGS="$(cat /tmp/bundle-args.txt)"
+          PWD_USED="$(cat /tmp/bundle-pwd.txt)"
+          echo "args: $ARGS"
+          echo "pwd: $PWD_USED"
+          case "$ARGS" in
+            "exec brakeman --quiet --format tabs"*) ;;
+            *) echo "FAIL: expected 'exec brakeman --quiet --format tabs ...'"; exit 1 ;;
+          esac
+          case "$PWD_USED" in
+            */brakeman-workdir) ;;
+            *) echo "FAIL: expected to run in brakeman-workdir"; exit 1 ;;
+          esac
+          echo "PASS"

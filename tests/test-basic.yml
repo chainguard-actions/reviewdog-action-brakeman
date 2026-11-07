@@ -1,0 +1,51 @@
+name: Test basic usage with local reporter
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake brakeman
+        run: |
+          mkdir -p /tmp/fakebin
+          cat > /tmp/fakebin/brakeman <<'EOF'
+          #!/bin/sh
+          echo "$@" > /tmp/brakeman-args.txt
+          pwd > /tmp/brakeman-pwd.txt
+          out=""
+          prev=""
+          for arg in "$@"; do
+            case "$prev" in
+              --output|-o) out="$arg" ;;
+            esac
+            prev="$arg"
+          done
+          [ -n "$out" ] || { echo "no --output given" >&2; exit 2; }
+          printf 'app/controllers/users_controller.rb\t5\tSQL Injection\tCheckSQL\tPossible SQL injection\tHigh\n' > "$out"
+          EOF
+          chmod +x /tmp/fakebin/brakeman
+          echo "/tmp/fakebin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          skip_install: 'true'
+          reporter: local
+          filter_mode: nofilter
+          brakeman_flags: '--skip-files foo.rb'
+      - name: Assert brakeman was invoked with expected flags
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          [ "$OUTCOME" = "success" ] || { echo "FAIL: action did not succeed"; exit 1; }
+          [ -f /tmp/brakeman-args.txt ] || { echo "FAIL: brakeman not invoked"; exit 1; }
+          ARGS="$(cat /tmp/brakeman-args.txt)"
+          echo "args: $ARGS"
+          for want in "--quiet" "--format tabs" "--no-exit-on-warn" "--no-exit-on-error" "--skip-files foo.rb" "--output"; do
+            case "$ARGS" in
+              *"$want"*) ;;
+              *) echo "FAIL: missing '$want'"; exit 1 ;;
+            esac
+          done
+          echo "PASS"

@@ -1,0 +1,56 @@
+name: Test brakeman_version is passed to gem install
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install fake gem and brakeman
+        run: |
+          mkdir -p /tmp/fakebin
+          cat > /tmp/fakebin/gem <<'EOF'
+          #!/bin/sh
+          echo "$@" > /tmp/gem-args.txt
+          exit 0
+          EOF
+          cat > /tmp/fakebin/brakeman <<'EOF'
+          #!/bin/sh
+          echo "$@" > /tmp/brakeman-args.txt
+          out=""
+          prev=""
+          for arg in "$@"; do
+            case "$prev" in
+              --output|-o) out="$arg" ;;
+            esac
+            prev="$arg"
+          done
+          [ -n "$out" ] || { echo "no --output given" >&2; exit 2; }
+          printf 'app/controllers/users_controller.rb\t5\tSQL Injection\tCheckSQL\tPossible SQL injection\tHigh\n' > "$out"
+          EOF
+          chmod +x /tmp/fakebin/gem /tmp/fakebin/brakeman
+          echo "/tmp/fakebin" >> "$GITHUB_PATH"
+      - id: action
+        uses: .
+        with:
+          brakeman_version: '6.1.2'
+          skip_install: 'false'
+          reporter: local
+          filter_mode: nofilter
+      - name: Assert gem install used requested version
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          [ "$OUTCOME" = "success" ] || { echo "FAIL: action did not succeed"; exit 1; }
+          [ -f /tmp/gem-args.txt ] || { echo "FAIL: gem not invoked"; exit 1; }
+          ARGS="$(cat /tmp/gem-args.txt)"
+          echo "gem args: $ARGS"
+          for want in "install" "brakeman" "--version 6.1.2"; do
+            case "$ARGS" in
+              *"$want"*) ;;
+              *) echo "FAIL: missing '$want'"; exit 1 ;;
+            esac
+          done
+          [ -f /tmp/brakeman-args.txt ] || { echo "FAIL: brakeman not invoked"; exit 1; }
+          echo "PASS"
