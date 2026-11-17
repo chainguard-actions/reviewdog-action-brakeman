@@ -1,5 +1,5 @@
 name: 'Run brakeman with reviewdog'
-description: "\U0001F436 Run brakeman with reviewdog on pull requests to improve code review experience."
+description: '🐶 Run brakeman with reviewdog on pull requests to improve code review experience.'
 author: 'mgrachev (reviewdog)'
 inputs:
   github_token:
@@ -71,7 +71,7 @@ runs:
         curl "${args[@]}" \
           -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
-    - run: $GITHUB_ACTION_PATH/script.sh
+    - run: '"$GITHUB_ACTION_PATH/script.sh"'
       shell: bash
       env:
         REVIEWDOG_VERSION: v0.21.2
