@@ -55,11 +55,8 @@ fi
 echo '::group:: Running brakeman with reviewdog 🐶 ...'
 BRAKEMAN_REPORT_FILE="$TEMP_PATH"/brakeman_report
 
-brakeman_flags=()
-if [ -n "${INPUT_BRAKEMAN_FLAGS}" ]; then
-  while IFS= read -r -d '' t; do brakeman_flags+=("$t"); done \
-    < <(printf '%s' "${INPUT_BRAKEMAN_FLAGS}" | xargs printf '%s\0')
-fi
+# shellcheck disable=SC2086
+brakeman_flags=(${INPUT_BRAKEMAN_FLAGS})   # same split and glob as upstream's unquoted ${INPUT_BRAKEMAN_FLAGS}
 ${BUNDLE_EXEC}brakeman --quiet --format tabs --no-exit-on-warn --no-exit-on-error "${brakeman_flags[@]}" --output "$BRAKEMAN_REPORT_FILE"
 reviewdog < "$BRAKEMAN_REPORT_FILE" \
   -f=brakeman \
